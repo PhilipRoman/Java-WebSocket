@@ -47,8 +47,6 @@ import javax.net.ssl.SSLEngineResult.Status;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSession;
 import org.java_websocket.interfaces.ISSLChannel;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Implements the relevant portions of the SocketChannel interface with the SSLEngine wrapper.
@@ -61,12 +59,6 @@ public class SSLSocketChannel2 implements ByteChannel, WrappedByteChannel, ISSLC
    **/
   protected static ByteBuffer emptybuffer = ByteBuffer.allocate(0);
 
-  /**
-   * Logger instance
-   *
-   * @since 1.4.0
-   */
-  private final Logger log = LoggerFactory.getLogger(SSLSocketChannel2.class);
 
   protected ExecutorService exec;
 
@@ -256,14 +248,8 @@ public class SSLSocketChannel2 implements ByteChannel, WrappedByteChannel, ISSLC
         inCrypt = ByteBuffer.allocate(netBufferMax);
       }
     }
-    if (inData.remaining() != 0 && log.isTraceEnabled()) {
-      log.trace(new String(inData.array(), inData.position(), inData.remaining()));
-    }
     inData.rewind();
     inData.flip();
-    if (inCrypt.remaining() != 0 && log.isTraceEnabled()) {
-      log.trace(new String(inCrypt.array(), inCrypt.position(), inCrypt.remaining()));
-    }
     inCrypt.rewind();
     inCrypt.flip();
     outCrypt.rewind();

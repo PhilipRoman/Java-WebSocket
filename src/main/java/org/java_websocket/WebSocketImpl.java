@@ -61,8 +61,6 @@ import org.java_websocket.interfaces.ISSLChannel;
 import org.java_websocket.protocols.IProtocol;
 import org.java_websocket.server.WebSocketServer.WebSocketWorker;
 import org.java_websocket.util.Charsetfunctions;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Represents one end (client or server) of a single WebSocketImpl connection. Takes care of the
@@ -85,12 +83,6 @@ public class WebSocketImpl implements WebSocket {
    */
   public static final int DEFAULT_WSS_PORT = 443;
 
-  /**
-   * Logger instance
-   *
-   * @since 1.4.0
-   */
-  private final Logger log = LoggerFactory.getLogger(WebSocketImpl.class);
 
   /**
    * Queue of buffers that need to be sent to the client.
@@ -219,11 +211,6 @@ public class WebSocketImpl implements WebSocket {
    */
   public void decode(ByteBuffer socketBuffer) {
     assert (socketBuffer.hasRemaining());
-    if (log.isTraceEnabled()) {
-      log.trace("process({}): ({})", socketBuffer.remaining(),
-              (socketBuffer.remaining() > 1000 ? "too big to display"
-                      : new String(socketBuffer.array(), socketBuffer.position(), socketBuffer.remaining())));
-    }
     if (readyState != ReadyState.NOT_YET_CONNECTED) {
       if (readyState == ReadyState.OPEN) {
         decodeFrames(socketBuffer);
@@ -275,7 +262,6 @@ public class WebSocketImpl implements WebSocket {
                 socketBuffer.reset();
                 Handshakedata tmphandshake = d.translateHandshake(socketBuffer);
                 if (!(tmphandshake instanceof ClientHandshake)) {
-                  log.trace("Closing due to wrong handshake");
                   closeConnectionDueToWrongHandshake(
                       new InvalidDataException(CloseFrame.PROTOCOL_ERROR, "wrong http function"));
                   return false;
@@ -288,11 +274,9 @@ public class WebSocketImpl implements WebSocket {
                   try {
                     response = wsl.onWebsocketHandshakeReceivedAsServer(this, d, handshake);
                   } catch (InvalidDataException e) {
-                    log.trace("Closing due to wrong handshake. Possible handshake rejection", e);
                     closeConnectionDueToWrongHandshake(e);
                     return false;
                   } catch (RuntimeException e) {
-                    log.error("Closing due to internal server error", e);
                     wsl.onWebsocketError(this, e);
                     closeConnectionDueToInternalServerError(e);
                     return false;
@@ -308,7 +292,6 @@ public class WebSocketImpl implements WebSocket {
               }
             }
             if (draft == null) {
-              log.trace("Closing due to protocol error: no draft matches");
               closeConnectionDueToWrongHandshake(
                   new InvalidDataException(CloseFrame.PROTOCOL_ERROR, "no draft matches"));
             }
@@ -317,7 +300,6 @@ public class WebSocketImpl implements WebSocket {
             // special case for multiple step handshakes
             Handshakedata tmphandshake = draft.translateHandshake(socketBuffer);
             if (!(tmphandshake instanceof ClientHandshake)) {
-              log.trace("Closing due to protocol error: wrong http function");
               flushAndClose(CloseFrame.PROTOCOL_ERROR, "wrong http function", false);
               return false;
             }
@@ -328,7 +310,6 @@ public class WebSocketImpl implements WebSocket {
               open(handshake);
               return true;
             } else {
-              log.trace("Closing due to protocol error: the handshake did finally not match");
               close(CloseFrame.PROTOCOL_ERROR, "the handshake did finally not match");
             }
             return false;
@@ -337,7 +318,6 @@ public class WebSocketImpl implements WebSocket {
           draft.setParseMode(role);
           Handshakedata tmphandshake = draft.translateHandshake(socketBuffer);
           if (!(tmphandshake instanceof ServerHandshake)) {
-            log.trace("Closing due to protocol error: wrong http function");
             flushAndClose(CloseFrame.PROTOCOL_ERROR, "wrong http function", false);
             return false;
           }
@@ -347,11 +327,9 @@ public class WebSocketImpl implements WebSocket {
             try {
               wsl.onWebsocketHandshakeReceivedAsClient(this, handshakerequest, handshake);
             } catch (InvalidDataException e) {
-              log.trace("Closing due to invalid data exception. Possible handshake rejection", e);
               flushAndClose(e.getCloseCode(), e.getMessage(), false);
               return false;
             } catch (RuntimeException e) {
-              log.error("Closing since client was never connected", e);
               wsl.onWebsocketError(this, e);
               flushAndClose(CloseFrame.NEVER_CONNECTED, e.getMessage(), false);
               return false;
@@ -359,12 +337,10 @@ public class WebSocketImpl implements WebSocket {
             open(handshake);
             return true;
           } else {
-            log.trace("Closing due to protocol error: draft {} refuses handshake", draft);
             close(CloseFrame.PROTOCOL_ERROR, "draft " + draft + " refuses handshake");
           }
         }
       } catch (InvalidHandshakeException e) {
-        log.trace("Closing due to invalid handshake", e);
         close(e);
       }
     } catch (IncompleteHandshakeException e) {
@@ -393,24 +369,19 @@ public class WebSocketImpl implements WebSocket {
     try {
       frames = draft.translateFrame(socketBuffer);
       for (Framedata f : frames) {
-        log.trace("matched frame: {}", f);
         draft.processFrame(this, f);
       }
     } catch (LimitExceededException e) {
       if (e.getLimit() == Integer.MAX_VALUE) {
-        log.error("Closing due to invalid size of frame", e);
         wsl.onWebsocketError(this, e);
       }
       close(e);
     } catch (InvalidDataException e) {
-      log.error("Closing due to invalid data in frame", e);
       wsl.onWebsocketError(this, e);
       close(e);
     } catch (VirtualMachineError | ThreadDeath | LinkageError e) {
-      log.error("Got fatal error during frame processing");
       throw e;
     } catch (Error e) {
-      log.error("Closing web socket due to an error during frame processing");
       Exception exception = new Exception(e);
       wsl.onWebsocketError(this, exception);
       String errorMessage = "Got error " + e.getClass().getName();
@@ -486,7 +457,6 @@ public class WebSocketImpl implements WebSocket {
               sendFrame(closeFrame);
             }
           } catch (InvalidDataException e) {
-            log.error("generated frame is invalid", e);
             wsl.onWebsocketError(this, e);
             flushAndClose(CloseFrame.ABNORMAL_CLOSE, "generated frame is invalid", false);
           }
@@ -546,9 +516,7 @@ public class WebSocketImpl implements WebSocket {
         channel.close();
       } catch (IOException e) {
         if (e.getMessage() != null && e.getMessage().equals("Broken pipe")) {
-          log.trace("Caught IOException: Broken pipe during closeConnection()", e);
         } else {
-          log.error("Exception during channel.close()", e);
           wsl.onWebsocketError(this, e);
         }
       }
@@ -596,7 +564,6 @@ public class WebSocketImpl implements WebSocket {
     try {
       wsl.onWebsocketClosing(this, code, message, remote);
     } catch (RuntimeException e) {
-      log.error("Exception in onWebsocketClosing", e);
       wsl.onWebsocketError(this, e);
     }
     if (draft != null) {
@@ -673,7 +640,6 @@ public class WebSocketImpl implements WebSocket {
     }
     ArrayList<ByteBuffer> outgoingFrames = new ArrayList<>();
     for (Framedata f : frames) {
-      log.trace("send frame: {}", f);
       outgoingFrames.add(draft.createBinaryFrame(f));
     }
     write(outgoingFrames);
@@ -724,7 +690,6 @@ public class WebSocketImpl implements WebSocket {
       // Stop if the client code throws an exception
       throw new InvalidHandshakeException("Handshake data rejected by client.");
     } catch (RuntimeException e) {
-      log.error("Exception in startHandshake", e);
       wsl.onWebsocketError(this, e);
       throw new InvalidHandshakeException("rejected because of " + e);
     }
@@ -734,8 +699,6 @@ public class WebSocketImpl implements WebSocket {
   }
 
   private void write(ByteBuffer buf) {
-    log.trace("write({}): {}", buf.remaining(),
-        buf.remaining() > 1000 ? "too big to display" : new String(buf.array()));
 
     outQueue.add(buf);
     wsl.onWriteDemand(this);
@@ -755,7 +718,6 @@ public class WebSocketImpl implements WebSocket {
   }
 
   private void open(Handshakedata d) {
-    log.trace("open using draft: {}", draft);
     readyState = ReadyState.OPEN;
     updateLastPong();
     try {

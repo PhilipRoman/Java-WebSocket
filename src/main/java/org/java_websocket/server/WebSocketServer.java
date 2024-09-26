@@ -67,8 +67,6 @@ import org.java_websocket.framing.CloseFrame;
 import org.java_websocket.framing.Framedata;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.handshake.Handshakedata;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * <code>WebSocketServer</code> is an abstract class that only takes care of the
@@ -79,12 +77,6 @@ public abstract class WebSocketServer extends AbstractWebSocket implements Runna
 
   private static final int AVAILABLE_PROCESSORS = Runtime.getRuntime().availableProcessors();
 
-  /**
-   * Logger instance
-   *
-   * @since 1.4.0
-   */
-  private final Logger log = LoggerFactory.getLogger(WebSocketServer.class);
 
   /**
    * Holds the list of active WebSocket connections. "Active" means WebSocket handshake is complete
@@ -630,7 +622,6 @@ public abstract class WebSocketServer extends AbstractWebSocket implements Runna
       try {
         selector.close();
       } catch (IOException e) {
-        log.error("IOException during selector.close", e);
         onError(null, e);
       }
     }
@@ -638,7 +629,6 @@ public abstract class WebSocketServer extends AbstractWebSocket implements Runna
       try {
         server.close();
       } catch (IOException e) {
-        log.error("IOException during server.close", e);
         onError(null, e);
       }
     }
@@ -697,13 +687,11 @@ public abstract class WebSocketServer extends AbstractWebSocket implements Runna
         } catch (IOException e) {
           // there is nothing that must be done here
         }
-        log.trace("Connection closed because of exception", ex);
       }
     }
   }
 
   private void handleFatal(WebSocket conn, Exception e) {
-    log.error("Shutdown due to fatal error", e);
     onError(conn, e);
 
     String causeMessage = e.getCause() != null ? " caused by " + e.getCause().getClass().getName() : "";
@@ -712,7 +700,6 @@ public abstract class WebSocketServer extends AbstractWebSocket implements Runna
       stop(0, errorMessage);
     } catch (InterruptedException e1) {
       Thread.currentThread().interrupt();
-      log.error("Interrupt during stop", e);
       onError(null, e1);
     }
 
@@ -780,9 +767,6 @@ public abstract class WebSocketServer extends AbstractWebSocket implements Runna
         removed = this.connections.remove(ws);
       } else {
         //Don't throw an assert error if the ws is not in the list. e.g. when the other endpoint did not send any handshake. see #512
-        log.trace(
-            "Removing connection which is not in the connections collection! Possible no handshake received! {}",
-            ws);
       }
     }
     if (isclosed.get() && connections.isEmpty()) {
@@ -1085,7 +1069,6 @@ public abstract class WebSocketServer extends AbstractWebSocket implements Runna
       setUncaughtExceptionHandler(new UncaughtExceptionHandler() {
         @Override
         public void uncaughtException(Thread t, Throwable e) {
-          log.error("Uncaught exception in thread {}: {}", t.getName(), e);
         }
       });
     }
@@ -1109,11 +1092,9 @@ public abstract class WebSocketServer extends AbstractWebSocket implements Runna
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
       } catch (VirtualMachineError | ThreadDeath | LinkageError e) {
-        log.error("Got fatal error in worker thread {}", getName());
         Exception exception = new Exception(e);
         handleFatal(ws, exception);
       } catch (Throwable e) {
-        log.error("Uncaught exception in thread {}: {}", getName(), e);
         if (ws != null) {
           Exception exception = new Exception(e);
           onWebsocketError(ws, exception);
@@ -1133,7 +1114,6 @@ public abstract class WebSocketServer extends AbstractWebSocket implements Runna
       try {
         ws.decode(buf);
       } catch (Exception e) {
-        log.error("Error while reading from remote connection", e);
       } finally {
         pushBuffer(buf);
       }
